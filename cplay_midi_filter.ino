@@ -14,6 +14,8 @@
 #define NUM_PIXELS  10
 #define HUE_FACTOR  21 // 256 / 12
 
+#define SUSTAIN_MESSAGE 67
+
 bool note_off[127];
 bool sustain;
 
@@ -121,8 +123,7 @@ void handleControlChange(byte channel, byte control, byte value)
   DEBUG_PRINT(", ");
   DEBUG_PRINT(value);
   DEBUG_PRINTLN(")");
-  if (control == midi::Sustain) {
-    MIDI.turnThruOff();
+  if (control == SUSTAIN_MESSAGE) {
     sustain = value;
     digitalWrite(SUSTAIN_LED, value);
 
