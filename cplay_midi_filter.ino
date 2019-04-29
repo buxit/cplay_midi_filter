@@ -14,6 +14,7 @@
 #define NUM_PIXELS  10
 #define HUE_FACTOR  21 // 256 / 12
 
+#define DEST_CHANNEL 11
 #define SUSTAIN_MESSAGE 67
 
 bool note_off[127];
@@ -70,24 +71,22 @@ void setup()
   //MIDI.setHandleStart(handleStart);
 
   MIDI.begin(MIDI_CHANNEL_OMNI);
+  MIDI.turnThruOff();
 }
 
 void handleClock()
 {
   DEBUG_PRINTLN(__FUNCTION__);
-  MIDI.turnThruOff();
 }
 
 void handleStart()
 {
   DEBUG_PRINTLN(__FUNCTION__);
-  MIDI.turnThruOff();
 }
 
 void handleActiveSensing()
 {
   DEBUG_PRINTLN(__FUNCTION__);
-  MIDI.turnThruOff();
 }
 
 void handleNoteOn(byte channel, byte pitch, byte velocity)
@@ -103,6 +102,7 @@ void handleNoteOn(byte channel, byte pitch, byte velocity)
 #endif
 
   note_off[pitch] = false;
+  MIDI.sendNoteOn(pitch, velocity, DEST_CHANNEL);
 
   DEBUG_PRINT(millis());
   DEBUG_PRINT("\tnoteOn (");
@@ -137,7 +137,7 @@ void handleControlChange(byte channel, byte control, byte value)
         if (note_off[i]) {
           DEBUG_PRINT(i);
           DEBUG_PRINT(" ");
-          MIDI.sendNoteOff(i, 0, channel);
+          MIDI.sendNoteOff(i, 0, DEST_CHANNEL);
           note_off[i] = false;
 #ifdef LIGHT_PIXELS
           if (pixel_switch) {
@@ -183,26 +183,29 @@ void handleNoteOff(byte channel, byte pitch, byte velocity)
 
   if (sustain) {
     note_off[pitch] = true;
-    MIDI.turnThruOff();
   }
+  else
+  {
+    MIDI.sendNoteOff(pitch, velocity, DEST_CHANNEL);
+
 #ifdef LIGHT_PIXELS
-  else if (pixel_switch) {
-    uint8_t pixel = pitch % NUM_PIXELS;
-    pixel_hue[pixel] -= pitch * HUE_FACTOR;
-    pixel_notes[pixel]--;
-    if (!pixel_notes[pixel]) {
-      CircuitPlayground.strip.setPixelColor(pixel, 0x0);
-    } else {
-      CircuitPlayground.strip.setPixelColor(pixel, CircuitPlayground.colorWheel(pixel_hue[pixel]));
+    if (pixel_switch) {
+      uint8_t pixel = pitch % NUM_PIXELS;
+      pixel_hue[pixel] -= pitch * HUE_FACTOR;
+      pixel_notes[pixel]--;
+      if (!pixel_notes[pixel]) {
+        CircuitPlayground.strip.setPixelColor(pixel, 0x0);
+      } else {
+        CircuitPlayground.strip.setPixelColor(pixel, CircuitPlayground.colorWheel(pixel_hue[pixel]));
+      }
+      update_pixels = true;
     }
-    update_pixels = true;
-  }
 #endif
+  }
 }
 
 void loop()
 {
-  MIDI.turnThruOn();
   MIDI.read();
 #ifdef LIGHT_PIXELS
   pixel_switch = digitalRead(CPLAY_SLIDESWITCHPIN);
