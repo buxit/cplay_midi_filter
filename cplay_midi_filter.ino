@@ -101,8 +101,12 @@ void handleNoteOn(byte channel, byte pitch, byte velocity)
   }
 #endif
 
+  if(!note_off[pitch])
+  {
+    MIDI.sendNoteOn(pitch, velocity, DEST_CHANNEL);
+  }
+
   note_off[pitch] = false;
-  MIDI.sendNoteOn(pitch, velocity, DEST_CHANNEL);
 
   DEBUG_PRINT(millis());
   DEBUG_PRINT("\tnoteOn (");
