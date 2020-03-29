@@ -14,9 +14,11 @@
 #define NUM_PIXELS  10
 #define HUE_FACTOR  21 // 256 / 12
 
-#define DEST_CHANNEL 11
 #define SUSTAIN_MESSAGE 67
+#define CHANNEL_POTI_PIN 9
+#define CHANNEL_SELECT_ON_BRIGHTNESS 30
 
+int dest_channel = 15;
 bool note_off[127];
 bool sustain;
 
@@ -60,6 +62,7 @@ void setup()
   pinMode(1, OUTPUT);
   digitalWrite(1, HIGH);
   pinMode(CPLAY_SLIDESWITCHPIN, INPUT);
+  pinMode(CHANNEL_POTI_PIN, INPUT);
   DEBUG_PRINTLN("setup()");
 
   MIDI.setHandleControlChange(handleControlChange);
@@ -103,7 +106,7 @@ void handleNoteOn(byte channel, byte pitch, byte velocity)
 
   if(!note_off[pitch])
   {
-    MIDI.sendNoteOn(pitch, velocity, DEST_CHANNEL);
+    MIDI.sendNoteOn(pitch, velocity, dest_channel + 1);
   }
 
   note_off[pitch] = false;
@@ -141,7 +144,7 @@ void handleControlChange(byte channel, byte control, byte value)
         if (note_off[i]) {
           DEBUG_PRINT(i);
           DEBUG_PRINT(" ");
-          MIDI.sendNoteOff(i, 0, DEST_CHANNEL);
+          MIDI.sendNoteOff(i, 0, dest_channel + 1);
           note_off[i] = false;
 #ifdef LIGHT_PIXELS
           if (pixel_switch) {
@@ -190,7 +193,7 @@ void handleNoteOff(byte channel, byte pitch, byte velocity)
   }
   else
   {
-    MIDI.sendNoteOff(pitch, velocity, DEST_CHANNEL);
+    MIDI.sendNoteOff(pitch, velocity, dest_channel + 1);
 
 #ifdef LIGHT_PIXELS
     if (pixel_switch) {
@@ -208,6 +211,42 @@ void handleNoteOff(byte channel, byte pitch, byte velocity)
   }
 }
 
+void updateDestChannel()
+{
+  int channel_poti_val = analogRead(CHANNEL_POTI_PIN);
+  int channel_val = channel_poti_val / 68;
+
+  if(dest_channel != channel_val)
+  {
+    dest_channel = channel_val;
+    CircuitPlayground.strip.clear();
+
+    if(channel_val < 10)
+    {
+      for(int i = 0; i < channel_val + 1; i++)
+      {
+        CircuitPlayground.strip.setPixelColor(i, 0, CHANNEL_SELECT_ON_BRIGHTNESS, 0);
+      }
+    }
+    if(channel_val == 10)
+    {
+      for(int i = 0; i < 10; i++)
+      {
+        CircuitPlayground.strip.setPixelColor(i, CHANNEL_SELECT_ON_BRIGHTNESS, 0, 0);
+      }
+    }
+    else if(channel_val < 15)
+    {
+      for(int i = 0; i < channel_val - 9; i++)
+      {
+        CircuitPlayground.strip.setPixelColor(i, 0, 0, CHANNEL_SELECT_ON_BRIGHTNESS);
+      }
+    }
+
+    CircuitPlayground.strip.show();
+  }
+}
+
 void loop()
 {
   MIDI.read();
@@ -218,4 +257,6 @@ void loop()
     update_pixels = false;
   }
 #endif
+
+  updateDestChannel();
 }
