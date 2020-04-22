@@ -14,9 +14,13 @@
 #define NUM_PIXELS  10
 #define HUE_FACTOR  21 // 256 / 12
 
-#define SUSTAIN_MESSAGE 67
+#define PEDAL_DOWN_MESSAGE 67
 #define CHANNEL_POTI_PIN 9
 #define CHANNEL_SELECT_ON_BRIGHTNESS 30
+
+#define HOLD_NOTES 1
+#define TRANSLATE_CC 2
+#define SUSTAIN_MODE TRANSLATE_CC
 
 int dest_channel = 15;
 bool note_off[127];
@@ -65,9 +69,15 @@ void setup()
   pinMode(CHANNEL_POTI_PIN, INPUT);
   DEBUG_PRINTLN("setup()");
 
-  MIDI.setHandleControlChange(handleControlChange);
-  MIDI.setHandleNoteOn(handleNoteOn);
-  MIDI.setHandleNoteOff(handleNoteOff);
+#if SUSTAIN_MODE == HOLD_NOTES
+  MIDI.setHandleControlChange(handleControlChangeHoldMode);
+  MIDI.setHandleNoteOn(handleNoteOnHoldMode);
+  MIDI.setHandleNoteOff(handleNoteOffHoldMode);
+#else
+  MIDI.setHandleControlChange(handleControlChangeCCMode);
+  MIDI.setHandleNoteOn(handleNoteOnCCMode);
+  MIDI.setHandleNoteOff(handleNoteOffCCMode);
+#endif
 
   MIDI.setHandleActiveSensing(handleActiveSensing);
   //MIDI.setHandleClock(handleClock);
@@ -92,7 +102,27 @@ void handleActiveSensing()
   DEBUG_PRINTLN(__FUNCTION__);
 }
 
-void handleNoteOn(byte channel, byte pitch, byte velocity)
+void handleNoteOnCCMode(byte channel, byte pitch, byte velocity)
+{
+  MIDI.sendNoteOn(pitch, velocity, dest_channel + 1);
+}
+
+void handleNoteOffCCMode(byte channel, byte pitch, byte velocity)
+{
+  MIDI.sendNoteOff(pitch, velocity, dest_channel + 1);
+}
+
+void handleControlChangeCCMode(byte channel, byte control, byte value)
+{
+  if (control == PEDAL_DOWN_MESSAGE) {
+    digitalWrite(SUSTAIN_LED, value);
+    MIDI.sendControlChange(64, value, dest_channel + 1);
+  } else {
+    MIDI.sendControlChange(control, value, dest_channel + 1);
+  }
+}
+
+void handleNoteOnHoldMode(byte channel, byte pitch, byte velocity)
 {
 #ifdef LIGHT_PIXELS
   if (pixel_switch && !note_off[pitch]) {
@@ -121,16 +151,16 @@ void handleNoteOn(byte channel, byte pitch, byte velocity)
   DEBUG_PRINTLN(")");
 }
 
-void handleControlChange(byte channel, byte control, byte value)
+void handleControlChangeHoldMode(byte channel, byte control, byte value)
 {
-  DEBUG_PRINT("handleControlChange(");
+  DEBUG_PRINT("handleControlChangeHoldMode(");
   DEBUG_PRINT(channel);
   DEBUG_PRINT(", ");
   DEBUG_PRINT(control);
   DEBUG_PRINT(", ");
   DEBUG_PRINT(value);
   DEBUG_PRINTLN(")");
-  if (control == SUSTAIN_MESSAGE) {
+  if (control == PEDAL_DOWN_MESSAGE) {
     sustain = value;
     digitalWrite(SUSTAIN_LED, value);
 
@@ -177,7 +207,7 @@ void handleControlChange(byte channel, byte control, byte value)
   }
 }
 
-void handleNoteOff(byte channel, byte pitch, byte velocity)
+void handleNoteOffHoldMode(byte channel, byte pitch, byte velocity)
 {
   DEBUG_PRINT(millis());
   DEBUG_PRINT("\tnoteOff(");
