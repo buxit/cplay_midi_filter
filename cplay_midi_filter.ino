@@ -18,13 +18,12 @@
 #define CHANNEL_POTI_PIN 9
 #define CHANNEL_SELECT_ON_BRIGHTNESS 30
 
-#define HOLD_NOTES 1
-#define TRANSLATE_CC 2
-#define SUSTAIN_MODE TRANSLATE_CC
-
 int dest_channel = 15;
+bool hold_mode = false;
 bool note_off[127];
 bool sustain;
+
+bool right_button_state = false;
 
 #ifdef LIGHT_PIXELS
 uint8_t pixel_hue[NUM_PIXELS];
@@ -69,19 +68,11 @@ void setup()
   pinMode(CHANNEL_POTI_PIN, INPUT);
   DEBUG_PRINTLN("setup()");
 
-#if SUSTAIN_MODE == HOLD_NOTES
-  MIDI.setHandleControlChange(handleControlChangeHoldMode);
-  MIDI.setHandleNoteOn(handleNoteOnHoldMode);
-  MIDI.setHandleNoteOff(handleNoteOffHoldMode);
-#else
   MIDI.setHandleControlChange(handleControlChangeCCMode);
   MIDI.setHandleNoteOn(handleNoteOnCCMode);
   MIDI.setHandleNoteOff(handleNoteOffCCMode);
-#endif
 
   MIDI.setHandleActiveSensing(handleActiveSensing);
-  //MIDI.setHandleClock(handleClock);
-  //MIDI.setHandleStart(handleStart);
 
   MIDI.begin(MIDI_CHANNEL_OMNI);
   MIDI.turnThruOff();
@@ -249,32 +240,81 @@ void updateDestChannel()
   if(dest_channel != channel_val)
   {
     dest_channel = channel_val;
+    displayChannel();
+  }
+}
+
+void displayChannel()
+{
     CircuitPlayground.strip.clear();
 
-    if(channel_val < 10)
+    if(dest_channel < 10)
     {
-      for(int i = 0; i < channel_val + 1; i++)
+      for(int i = 0; i < dest_channel + 1; i++)
       {
         CircuitPlayground.strip.setPixelColor(i, 0, CHANNEL_SELECT_ON_BRIGHTNESS, 0);
       }
     }
-    if(channel_val == 10)
+    if(dest_channel == 10)
     {
       for(int i = 0; i < 10; i++)
       {
         CircuitPlayground.strip.setPixelColor(i, CHANNEL_SELECT_ON_BRIGHTNESS, 0, 0);
       }
     }
-    else if(channel_val < 15)
+    else if(dest_channel < 15)
     {
-      for(int i = 0; i < channel_val - 9; i++)
+      for(int i = 0; i < dest_channel - 9; i++)
       {
         CircuitPlayground.strip.setPixelColor(i, 0, 0, CHANNEL_SELECT_ON_BRIGHTNESS);
       }
     }
 
     CircuitPlayground.strip.show();
+}
+
+void toggleSustainMode()
+{
+  CircuitPlayground.strip.clear();
+
+  hold_mode = !hold_mode;
+
+  for(int i = 0; i < 10; i++)
+  {
+    if(i % 2 == 0)
+    {
+      CircuitPlayground.strip.setPixelColor(i, 255, 0, 255);
+    }
+    else
+    {
+      if(hold_mode)
+      {
+        CircuitPlayground.strip.setPixelColor(i, 0, 0, 255);
+      }
+      else
+      {
+        CircuitPlayground.strip.setPixelColor(i, 255, 0, 0);
+      }
+    }
   }
+
+  CircuitPlayground.strip.show();
+
+  if(hold_mode)
+  {
+    MIDI.setHandleControlChange(handleControlChangeHoldMode);
+    MIDI.setHandleNoteOn(handleNoteOnHoldMode);
+    MIDI.setHandleNoteOff(handleNoteOffHoldMode);
+  }
+  else
+  {
+    MIDI.setHandleControlChange(handleControlChangeCCMode);
+    MIDI.setHandleNoteOn(handleNoteOnCCMode);
+    MIDI.setHandleNoteOff(handleNoteOffCCMode);
+  }
+
+  delay(250);
+  displayChannel();
 }
 
 void loop()
@@ -289,4 +329,15 @@ void loop()
 #endif
 
   updateDestChannel();
+
+  bool right_button = CircuitPlayground.rightButton();
+  if(right_button != right_button_state)
+  {
+    if(right_button)
+    {
+      toggleSustainMode();
+    }
+
+    right_button_state = right_button;
+  }
 }
